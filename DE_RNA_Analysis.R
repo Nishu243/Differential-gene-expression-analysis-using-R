@@ -126,23 +126,40 @@ lrt.edgeR <- glmLRT(fit.edgeR, contrast=contrasts.edgeR)
 edgeR_results <- lrt.edgeR$table
 sig.edgeR <- decideTestsDGE(lrt.edgeR,adjust.method="BH", p.value = 0.05)
 genes.edgeR <- row.names(edgeR_results)[which(sig.edgeR != 0)]
+
 ## DESeq2 ##
 ## DESeq2 ##
-contrast.deseq2 <- list("strainC57BL.6J", "strainDBA.2J")
-deseq2_results <- results(dds,contrast=contrast.deseq2,cooksCutoff=FALSE)
-deseq2_results$threshold <- as.logical(deseq2_results$padj < p.threshold)
+contrast.deseq2 <- list("strain_DBA.2J_vs_C57BL.6J")
+deseq2_results <- results(dds,contrast=contrast.deseq2)
+summary(deseq2_results)
+deseq2_results$threshold <- as.logical(deseq2_results$padj < 0.05)
 genes.deseq <- row.names(deseq2_results)[which(deseq2_results$threshold)]
+
 ## voom-limma ##
 # Create design matrix
 design <- model.matrix(~ pData(bottomly.eset)$strain)
 # Usual limma pipeline
+library(limma)
+v <- voom(dge,design,plot=TRUE)
 fit.voom <- lmFit(v, design)
 fit.voom <- eBayes(fit.voom)
+
 voom_results <- topTable(fit.voom, coef=2,  adjust="BH", number = nrow(exprs(bottomly.eset)))
-voom_results$threshold <- as.logical(voom_results$adj.P.Val < p.threshold)
+voom_results$threshold <- as.logical(voom_results$adj.P.Val < 0.05)
 genes.voom <- row.names(voom_results)[which(voom_results$threshold)]
+
+#how many genes are significant
+length(genes.voom)
+length(genes.deseq)
+length(genes.edgeR)
+
+#how all three genes overlapped
+install.packages("gplots")
 library(gplots)
 venn(list(edgeR = genes.edgeR, DESeq2 = genes.deseq, voom = genes.voom))
+write.table(edgeR_results,file = "edgeR_results.txt",sep="\t", col.names=NA,quote=F)
+head(deseq2_results)
+
 ### DEG comparison with 2 replicates
 ## edgeR ##
 # Design matrix
@@ -153,18 +170,18 @@ colnames(design.mat) <- c("C57BL", "DBA")
 fit.edgeR <- glmFit(dge.2reps, design.mat)
 
 # Differential expression
-contrasts.edgeR <- makeContrasts(C57BL - DBA, levels = design.mat)
-lrt.edgeR <- glmLRT(fit.edgeR, contrast = contrasts.edgeR)
+contrasts.edgeR <- makeContrasts(C57BL - DBA, levels=design.mat)
+lrt.edgeR <- glmLRT(fit.edgeR, contrast=contrasts.edgeR)
 
 # Access results tables
 edgeR_results_2reps <- lrt.edgeR$table
-sig.edgeR.2reps <- decideTestsDGE(lrt.edgeR, adjust.method = "BH", p.value = p.threshold)
+sig.edgeR.2reps <- decideTestsDGE(lrt.edgeR, adjust.method = "BH", p.value = 0.05)
 genes.edgeR.2reps <- row.names(edgeR_results_2reps)[which(sig.edgeR.2reps == 1)]
 
 ## DESeq2 ##
-contrast.deseq2 <- list("strainC57BL.6J", "strainDBA.2J")
+contrast.deseq2 <- list("strain_DBA.2J_vs_C57BL.6J")
 deseq2_results_2reps <- results(dds.2rep, contrast=contrast.deseq2)
-deseq2_results_2reps$threshold <- as.logical(deseq2_results_2reps$padj < p.threshold)
+deseq2_results_2reps$threshold <- as.logical(deseq2_results_2reps$padj < 0.05)
 genes.deseq.2reps <- row.names(deseq2_results_2reps)[which(deseq2_results_2reps$threshold)]
 
 ## voom-limma ##
@@ -174,15 +191,13 @@ design <- model.matrix(~ pData(bottomly.2reps)$strain)
 # Usual limma pipeline
 fit.voom <- lmFit(v.2reps, design)
 fit.voom <- eBayes(fit.voom)
-Warning message:
-  Zero sample variances detected, have been offset 
-
 voom_results_2reps <- topTable(fit.voom, coef=2,  adjust="BH", number = nrow(exprs(bottomly.2reps)))
-voom_results_2reps$threshold <- as.logical(voom_results_2reps$adj.P.Val < p.threshold)
+voom_results_2reps$threshold <- as.logical(voom_results_2reps$adj.P.Val < 0.05)
 genes.voom.2reps <- row.names(voom_results_2reps)[which(voom_results_2reps$threshold)]
 
 length(genes.deseq.2reps)
 length(genes.edgeR.2reps)
 length(genes.voom.2reps)
 
+#overlapping genes
 venn(list(edgeR = genes.edgeR.2reps, DESeq2 = genes.deseq.2reps, voom = genes.voom.2reps))
